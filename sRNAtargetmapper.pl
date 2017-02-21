@@ -92,7 +92,6 @@ $information="
              Defines the number of nucleotides within the seedmatch which may
              differ from the genomic sequence. Note increasing this value
              has an exponential run time increase.
-
  -c 
  -clipfirst
              Defines the 5' clip on the seed match. This is intended to allow a
@@ -106,8 +105,9 @@ $information="
  -d [value]
  -direction [value]
              Defines if mapping is performed on plus strand only or on both
-             strands. Valid values are <0> (search plus strand only) and <1>
-             (search both strands). The default value is <1>.
+             strands. Valid values are <1> for plus strand only, <-1> for
+             antisense strand (best for target searching of a transcriptome)
+             or <0> to search both strands. The default value is <-1>.
  -v [value]
  -verbosity [value]
              Defines verbosity of the program during the mapping process. Valid
@@ -154,8 +154,8 @@ GetOptions
 	"nontemplates=s"=>\$untemplate_3p,
 	"m=s"=>\$max_internal_mm,
 	"mismatch=s"=>\$max_internal_mm,
-	"d=s"=>\$search_both_strands,
-	"direction=s"=>\$search_both_strands,
+	"d=s"=>\$direction,
+	"direction=s"=>\$direction,
 	"r=s"=>\$replace_titles_by_id,
 	"replaceheads=s"=>\$replace_titles_by_id,
 	"f=s"=>\$format,
@@ -173,14 +173,15 @@ if($seed_mm!~/^\d+$/){$seed_mm=0;}
 if($perfect_5p!~/^\d+$/){$perfect_5p=10;}
 if($untemplate_3p!~/^\d+$/){$untemplate_3p=2;}
 if($max_internal_mm!~/^\d+$/){$max_internal_mm=1;}
-if($search_both_strands!~/^[01]$/){$search_both_strands=1;}
+if($direction!~/^-?[01]$/){$direction=-1;}
 if($replace_titles_by_id!~/^[01]$/){$replace_titles_by_id=0;}
 if($format ne'eland'&&$format ne'compact'&&$format ne'sam'){$format="eeland";}
 if($output_strictness ne 'all'&&$output_strictness ne 'best'){$output_strictness="all";}
 if($verbosity!~/^[012]$/){$verbosity=2;}
 if(@input==0){print"\n\n STOP: No probe/input file(s) specified.\n\n$information";exit;}
 unless(-e$genome_file){print"\n\n STOP: No valid reference/genome file specified.\n\n$information";exit;}
-if($search_both_strands==0){$info_strands="no";}else{$info_strands="yes";$search_both_strands=1;}
+if($direction == 1) {$strands = "+";} elsif($direction == -1) {$strands = "-";} else {$strands = "+/-";}
+
 print"
 
              ------------------------------------------------
@@ -194,7 +195,7 @@ print"
              Max. non-template 3' bases: $untemplate_3p
              Max. internal mismatch: ... $max_internal_mm
              Max. seed mismatch: ....... $seed_mm
-             Search both strands: ...... $info_strands
+             Search strands: ........... $strands
              Output format: ............ $format 
              Alignments: ............... $output_strictness
      
@@ -276,7 +277,7 @@ sub generate_edited_seqs
 		my @repl_list;
 		for my $p (@$edit_site_set) 
 			{
-			my @repl = grep { $_ ne substr($orig_seq,$p,1) } ("A","C","G","T");
+			my @repl = grep { $_ ne substr($orig_seq,$p,1) } ("A","C","G","U");
 			push(@repl_list,\@repl);
 			}
 		my $repl_prod = cartesian_product(\@repl_list);
@@ -353,6 +354,8 @@ foreach$probe(@input)
 		%probes_seeds=();
 		%probes_distance=();
 		$t_start=time;
+		if($direction != -1) 
+		{
 		open(PROBE,$probe)||die print"\nCould not open sequencefile $probe.\n$!\n\n";
 		if($verbosity!=0)
 			{
@@ -375,11 +378,11 @@ foreach$probe(@input)
 
 			if($i==1) 
 				{
+				$seq_data[1]=~tr/atgcuT/AUGCUU/;
 				my $primary_seed = substr($seq_data[1],$clip,$perfect_5p-$clip);
 				if($seq_data[1]!~/^\s*$/&&$primary_seed!~/N/)
 					{
 					$n_probeseqs++;
-					$seq_data[1]=~tr/atgc/ATGC/;
 					
 					# hash of arrays: key = 5p seq / array = all 3p seqs that belong to 5p seq
 					my $seeds = generate_edited_seqs($primary_seed,$seed_mm);
@@ -408,9 +411,10 @@ foreach$probe(@input)
 		close PROBE;
 		$n_indexes=keys%probes;
 		print" done.\nCreated $n_indexes indexes for $n_probeseqs sequences ($min_length-$max_length nt)";
+		}
 		
 		# INDEX PROBES (FOR REVERSE STRAND SEARCH)
-		if($search_both_strands==1)
+		if($direction!=1)
 			{
 			%probes_rc=();
 			%probes_rc_info=();
@@ -422,6 +426,7 @@ foreach$probe(@input)
 				{
 				print"\nIndexing sequences for reverse strand search...";
 				}
+      $i=0;
 			while(<PROBE>)
 				{
 				$_=~s/\s*$//;
@@ -436,11 +441,11 @@ foreach$probe(@input)
 					}
 				if($i==1)
 					{
+					$seq_data[1]=~tr/atgcuT/AUGCUU/;
 					if($seq_data[1]!~/^\s*$/&&substr($seq_data[1],$clip,$perfect_5p-$clip)!~/N/)
 						{
-						$seq_data[1]=~tr/atgc/ATGC/;
 						$rc=$seq_data[1];
-						$rc=~tr/ATGC/TACG/;
+						$rc=~tr/AUGC/UACG/;
 						$rc=reverse$rc;
 						my $primary_seed = substr($rc,-($perfect_5p),$perfect_5p-$clip);
 						my $seeds = generate_edited_seqs($primary_seed,$seed_mm);
@@ -450,6 +455,15 @@ foreach$probe(@input)
 							$seq_data[0]=~s/^[>\@]//; $seq_data[0]=~s/\s.*$//;
 							push(@{$probes_rc_info{$seed}},$seq_data[0]);
 							push(@{$probes_rc_distance{$seed}},$$seeds{$seed});
+							}
+						# check minimum and maximum sequence length
+						if(length$seq_data[1]<$min_length||$min_length==-1)
+							{
+							$min_length=length$seq_data[1];
+							}
+						if(length$seq_data[1]>$max_length)
+							{
+							$max_length=length$seq_data[1];
 							}
 						}
 					$i=0;
@@ -545,18 +559,18 @@ foreach$probe(@input)
 					$position++;
 					
 					# save passed sequence for reverse strand search (extension of seed match)
-					if($search_both_strands==1)
-						{
+					#if($direction!=1)
+					#{
 						$lagging_stretch.=$lagging_bp;
 						if(length$lagging_stretch>$max_length)
 							{
 							$lagging_stretch=~s/.//;
 							}
-						}
+						#}
 					}
 				}
 			
-			if(length$stretch>=$perfect_5p)
+			if(length$stretch>=$perfect_5p-$clip)
 				{
 				$concatenate_index=0;
 				search_seed_matches();
@@ -564,6 +578,7 @@ foreach$probe(@input)
 					{
 					# check for seed match in sense orientation
 					my $seed = substr($stretch,$clip,$perfect_5p-$clip);
+					#warn($seed);
 					if($probes{$seed})
 						{
 						foreach$i(0..scalar(@{$probes{$seed}})-1)
@@ -605,7 +620,16 @@ foreach$probe(@input)
 								$output_line = "$replace_titles{$chromosome}\t$position\t$locus_seq\t$probe_name\t$mapped_seq\t$hit_mm\t+\n";
 								if($format eq 'eeland') 
 									{
-									$output_line = substr($output_line,0,-1)."\t$count_clip_mm\t$probes_distance{$seed}->[$i]\t$count_internal_mm\t$count_untemplate_3p\n"
+									$output_line = substr($output_line,0,-1)."\t$count_clip_mm\t$probes_distance{$seed}->[$i]\t$count_internal_mm\t$count_untemplate_3p\n";
+									$m = "";
+									foreach$pos(0..length($locus_seq)-1) 
+										{
+											$l = substr($mapped_seq,$pos,1); $p = substr($locus_seq,$pos,1);
+											if($l eq $p) { $m .= "|" }
+											elsif(($l eq "G" && $p eq "U") || ($l eq "U" && $p eq "G")) { $m .= ":" }
+											else { $m .= " " }
+										}
+										$output_line .= "${locus_seq}\n${m}\n${mapped_seq}\n";
 									} 
 
 								
@@ -634,13 +658,12 @@ foreach$probe(@input)
 							}
 						}
 					
-					if($search_both_strands==1)
+					if($direction!=1)
 						{
-                            #TODO: missing last alignment for minus strand
+            #TODO: missing last alignment for minus strand
 						# check for seed match in antisense orientation
 						my $seed = substr($stretch,0,$perfect_5p-$clip);
 						if($probes_rc{$seed}) {
-
 							foreach$i(0..scalar(@{$probes_rc{$seed}})-1)
 								{
 								my $mapped_seq = $probes_rc{$seed}->[$i];
@@ -671,8 +694,8 @@ foreach$probe(@input)
 										{
 										$locus_seq=substr($lagging_stretch,-length$p3).$locus_seq;
 										}
-									$locus_seq=~tr/ATGC/TACG/;
-									$locus_seq=reverse$locus_seq;
+                  #$locus_seq=~tr/AUGC/UACG/;
+                  #$locus_seq=reverse$locus_seq;
 									
 									$outside=0;
 									foreach$pos(0..$untemplate_3p-1)
@@ -691,15 +714,25 @@ foreach$probe(@input)
 									$hit_mm=$count_internal_mm+$count_untemplate_3p+$count_clip_mm+$probes_rc_distance{$seed}->[$i];
 									
 									$mapped_seq_rc=$mapped_seq;
-									$mapped_seq=~tr/ATGC/TACG/;
-									$mapped_seq=reverse$mapped_seq;
+									$mapped_seq=~tr/AUGC/UACG/;
+									$mapped_seq_c=$mapped_seq;
+									$mapped_seq=reverse$mapped_seq_c;
 									$rc_position=($position-length$p3);
 
 									my $probe_name = $probes_rc_info{$seed}->[$i];
 									$output_line = "$replace_titles{$chromosome}\t$rc_position\t$locus_seq\t$probe_name\t$mapped_seq\t$hit_mm\t-\n";
 									if($format eq 'eeland') 
 										{
-										$output_line = substr($output_line,0,-1)."\t$count_clip_mm\t$probes_rc_distance{$seed}->[$i]\t$count_internal_mm\t$count_untemplate_3p\n"
+										$output_line = substr($output_line,0,-1)."\t$count_clip_mm\t$probes_rc_distance{$seed}->[$i]\t$count_internal_mm\t$count_untemplate_3p\n";
+                    $m = "";
+										foreach$pos(0..length($locus_seq)-1) 
+											{
+												$l = substr($mapped_seq_rc,$pos,1); $p = substr($locus_seq,$pos,1);
+												if($l eq $p) { $m .= "|" }
+                        elsif(($l eq "C" && $p eq "U") || ($l eq "A" && $p eq "G")) { $m .= ":" }
+												else { $m .= " " }
+											}
+										$output_line .= "${locus_seq}\n${m}\n${mapped_seq_c}\n";
 										} 
 									# do not output hit if output_strictness is 'best' and it is worse than a hit before
 									unless(exists($best_hit{$mapped_seq}))
@@ -757,22 +790,46 @@ foreach$probe(@input)
 					{
 					$processed_bp+=length$next_line;
 					$stretch.=uc$next_line;
+          $stretch=~tr/atgcuT/AUGCUU/;
 					$concatenate_index=1;
 					}
 				}
 			}
 		$t_end=time;
 		$time_used=$t_end-$t_start;
-		if($verbosity==2)
+    if($verbosity==2)
 			{
-			print"\nPROBE:.. $probe\nREF:.... $chromosome\nPOS:.... $position\nScanned: $processed_bp bp\nSpeed:.. $speed bp/s\nEstimated remaining time: $est_remaining seconds.\n\nFiltering/Sorting raw file:\n\n0%                                50%                                100%\n|----------------------------------|----------------------------------|\n";
+			print"\nPROBE:.. $probe\nREF:.... $chromosome\nPOS:.... $position\nScanned: $processed_bp bp\nSpeed:.. $speed bp/s\nEstimated remaining time: $est_remaining seconds.\n\nDone. Time used for mapping: $time_used seconds.\n\n"
 			}
 		elsif($verbosity==1)
 			{
-			print" done.\nTime used for mapping: $time_used seconds.\n\nFiltering/Sorting raw file:\n\n0%                                50%                                100%\n|----------------------------------|----------------------------------|\n";
+			print" done.\nTime used for mapping: $time_used seconds.\n\n"
 			}
-		
+
+		if($format eq "eeland") 
+			{
+			if($outfile!~/^\s*$/) 
+				{
+				rename("$probe.raw","$outfile")||print"\nCould not rename RAW file '$probe.raw' -> '$outfile'.\n$!\n\n";
+				}
+			else
+				{
+				rename("$probe.raw","$probe.map")||print"\nCould not rename RAW file '$probe.raw' -> '$probe.map'.\n$!\n\n";
+				}
+				exit 0;
+			}
+
 		# FILTER AND/OR SORT
+			if($verbosity == 2)
+				{
+				print "Filtering/Sorting raw file:\n\n0%                                50%                                100%\n|----------------------------------|----------------------------------|\n";
+				}
+			elsif($verbosity == 1)
+				{
+					print "Filtering/Sorting raw file:\n\n0%                                50%                                100%\n|----------------------------------|----------------------------------|\n";
+				}
+
+
 		$t_start=time;
 		open(RAW,"$probe.raw")||die print"\nCould not open RAW file $probe.raw.\n$!\n\n";
 		open(MAP,">$probe.map")||die print"\nCould not create MAP file $probe.map.\n$!\n\n";
@@ -921,7 +978,7 @@ foreach$probe(@input)
 						if($d[6]=~/-/)
 							{
 							$d[4]=reverse$d[4];
-							$d[4]=~tr/ATGC/TACG/;
+							$d[4]=~tr/AUGC/UACG/;
 							}
 						push(@unsorted,"$index\t$d[3]\t0\t$d[0]\t$d[1]\t255\t$cigar\t$d[3]\t*\t0\t0\t$d[4]\t*\n");
 						}
