@@ -82,6 +82,9 @@ $information="
              will output all hits while <best> will output only the best hits.
              Can be still more than one hit per sequence if the hits have equal
              quality. The default value is <all>.
+ -p
+ -printalignment
+             Print the alignment (eeland format only)
  -s [value]
  -seedmatch [value]
              Defines the number of 5' nucleotides that must produce a perfect
@@ -150,6 +153,8 @@ GetOptions
 	"seedmismatch=s"=>\$seed_mm,
 	"c"=>\$clip,
 	"clipfirst"=>\$clip,
+	"p"=>\$printalignment,
+	"printalignment"=>\$printalignment,
 	"n=s"=>\$untemplate_3p,
 	"nontemplates=s"=>\$untemplate_3p,
 	"m=s"=>\$max_internal_mm,
@@ -169,6 +174,7 @@ GetOptions
 $format=lc$format;
 if($print_info){print$information;exit;}
 if($clip){$clip=1;}else{$clip=0;}
+if($printalignment){$printalignment=1;}else{$printalignment=0;}
 if($seed_mm!~/^\d+$/){$seed_mm=0;}
 if($perfect_5p!~/^\d+$/){$perfect_5p=10;}
 if($untemplate_3p!~/^\d+$/){$untemplate_3p=2;}
@@ -622,15 +628,18 @@ foreach$probe(@input)
 									{
 									$output_line = substr($output_line,0,-1)."\t$count_clip_mm\t$probes_distance{$seed}->[$i]\t$count_internal_mm\t$count_untemplate_3p\n";
 									$m = "";
-									foreach$pos(0..length($locus_seq)-1) 
+									if($printalignment) 
 										{
-											$l = substr($mapped_seq,$pos,1); $p = substr($locus_seq,$pos,1);
-											if($l eq $p) { $m .= "|" }
-											elsif(($l eq "G" && $p eq "U") || ($l eq "U" && $p eq "G")) { $m .= ":" }
-											else { $m .= " " }
+										foreach$pos(0..length($locus_seq)-1) 
+											{
+												$l = substr($mapped_seq,$pos,1); $p = substr($locus_seq,$pos,1);
+												if($l eq $p) { $m .= "|" }
+												elsif(($l eq "G" && $p eq "U") || ($l eq "U" && $p eq "G")) { $m .= ":" }
+												else { $m .= " " }
+											}
+											$output_line .= "${locus_seq}\n${m}\n${mapped_seq}\n";
 										}
-										$output_line .= "${locus_seq}\n${m}\n${mapped_seq}\n";
-									} 
+									}
 
 								
 								# do not output hit if output_strictness is 'best' and it is worse than a hit before
@@ -694,8 +703,8 @@ foreach$probe(@input)
 										{
 										$locus_seq=substr($lagging_stretch,-length$p3).$locus_seq;
 										}
-                  #$locus_seq=~tr/AUGC/UACG/;
-                  #$locus_seq=reverse$locus_seq;
+									#$locus_seq=~tr/AUGC/UACG/;
+									#$locus_seq=reverse$locus_seq;
 									
 									$outside=0;
 									foreach$pos(0..$untemplate_3p-1)
@@ -724,15 +733,18 @@ foreach$probe(@input)
 									if($format eq 'eeland') 
 										{
 										$output_line = substr($output_line,0,-1)."\t$count_clip_mm\t$probes_rc_distance{$seed}->[$i]\t$count_internal_mm\t$count_untemplate_3p\n";
-                    $m = "";
-										foreach$pos(0..length($locus_seq)-1) 
+										if($printalignment)
 											{
-												$l = substr($mapped_seq_rc,$pos,1); $p = substr($locus_seq,$pos,1);
-												if($l eq $p) { $m .= "|" }
-                        elsif(($l eq "C" && $p eq "U") || ($l eq "A" && $p eq "G")) { $m .= ":" }
-												else { $m .= " " }
+											$m = "";
+											foreach$pos(0..length($locus_seq)-1) 
+												{
+													$l = substr($mapped_seq_rc,$pos,1); $p = substr($locus_seq,$pos,1);
+													if($l eq $p) { $m .= "|" }
+													elsif(($l eq "C" && $p eq "U") || ($l eq "A" && $p eq "G")) { $m .= ":" }
+													else { $m .= " " }
+												}
+											$output_line .= "${locus_seq}\n${m}\n${mapped_seq_c}\n";
 											}
-										$output_line .= "${locus_seq}\n${m}\n${mapped_seq_c}\n";
 										} 
 									# do not output hit if output_strictness is 'best' and it is worse than a hit before
 									unless(exists($best_hit{$mapped_seq}))
