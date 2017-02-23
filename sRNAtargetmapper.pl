@@ -184,8 +184,8 @@ if($replace_titles_by_id!~/^[01]$/){$replace_titles_by_id=0;}
 if($format ne'eland'&&$format ne'compact'&&$format ne'sam'){$format="eeland";}
 if($output_strictness ne 'all'&&$output_strictness ne 'best'){$output_strictness="all";}
 if($verbosity!~/^[012]$/){$verbosity=2;}
-if(@input==0){print"\n\n STOP: No probe/input file(s) specified.\n\n$information";exit;}
-unless(-e$genome_file){print"\n\n STOP: No valid reference/genome file specified.\n\n$information";exit;}
+if(@input==0){print"\n\n STOP: No probe/input file(s) specified.\n\n";exit;}
+unless(-e$genome_file){print"\n\n STOP: No valid reference/genome file specified.\n\n";exit;}
 if($direction == 1) {$strands = "+";} elsif($direction == -1) {$strands = "-";} else {$strands = "+/-";}
 
 print"
