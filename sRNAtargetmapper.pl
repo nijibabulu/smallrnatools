@@ -111,6 +111,9 @@ $information="
              strands. Valid values are <1> for plus strand only, <-1> for
              antisense strand (best for target searching of a transcriptome)
              or <0> to search both strands. The default value is <-1>.
+ -G [value]
+ -GUpenalty
+             Penalty for GU pairs in the template region. Default is 0.5.
  -v [value]
  -verbosity [value]
              Defines verbosity of the program during the mapping process. Valid
@@ -153,6 +156,8 @@ GetOptions
 	"seedmismatch=s"=>\$seed_mm,
 	"c"=>\$clip,
 	"clipfirst"=>\$clip,
+	"G=f"=>\$GUpenalty,
+	"GUpenalty=f"=>\$GUpenalty,
 	"p"=>\$printalignment,
 	"printalignment"=>\$printalignment,
 	"n=s"=>\$untemplate_3p,
@@ -183,6 +188,7 @@ if($direction!~/^-?[01]$/){$direction=-1;}
 if($replace_titles_by_id!~/^[01]$/){$replace_titles_by_id=0;}
 if($format ne'eland'&&$format ne'compact'&&$format ne'sam'){$format="eeland";}
 if($output_strictness ne 'all'&&$output_strictness ne 'best'){$output_strictness="all";}
+if($GUpenalty!~/^\d+(\.\d+)?$/){$GUpenalty=0.5;}
 if($verbosity!~/^[012]$/){$verbosity=2;}
 if(@input==0){print"\n\n STOP: No probe/input file(s) specified.\n\n$information";exit;}
 unless(-e$genome_file){print"\n\n STOP: No valid reference/genome file specified.\n\n$information";exit;}
@@ -201,6 +207,7 @@ print"
              Max. non-template 3' bases: $untemplate_3p
              Max. internal mismatch: ... $max_internal_mm
              Max. seed mismatch: ....... $seed_mm
+             G:U penalty: .............. $GUpenalty
              Search strands: ........... $strands
              Output format: ............ $format 
              Alignments: ............... $output_strictness
@@ -603,9 +610,18 @@ foreach$probe(@input)
 								}
 							foreach$pos(0..((length$p3)-$untemplate_3p)-1)
 								{
-								if(substr($stretch,$pos+$perfect_5p,1) ne substr($p3,$pos,1))
+								$g=substr($stretch,$pos+$perfect_5p,1);
+								$m=substr($p3,$pos,1);
+								if($g ne $m)
 									{
-									$count_internal_mm++;
+									if(($g == "G" and $m == "U") or ($g == "U" and $m == "G"))
+										{
+										$count_internal_mm += $GUpenalty;
+										}
+									else
+										{
+										$count_internal_mm++;
+										}
 									last if($count_internal_mm>$max_internal_mm);
 									}
 								}
@@ -689,13 +705,21 @@ foreach$probe(@input)
 									}
 								foreach$pos(0..((length$p3)-$untemplate_3p)-1)
 									{
-									if(substr($lagging_stretch,-1-$pos,1) ne substr($p3,-1-$pos,1))
+									$g=substr($lagging_stretch,-1-$pos,1);
+									$m=substr($p3,-1-$pos,1);
+									if($g ne $m) 
 										{
-										$count_internal_mm++;
+										if(($g == "G" and $m == "U") or ($g == "U" and $m == "G")) 
+											{
+											$count_internal_mm += $GUpenalty;
+											}
+										else 
+											{
+											$count_internal_mm++;
+											}
 										last if($count_internal_mm>$max_internal_mm);
 										}
 									}
-									
 								if($count_internal_mm<=$max_internal_mm)
 									{
 									$locus_seq=substr($stretch,0,$perfect_5p);
