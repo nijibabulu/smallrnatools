@@ -439,7 +439,7 @@ foreach$probe(@input)
 				{
 				print"\nIndexing sequences for reverse strand search...";
 				}
-      $i=0;
+			$i=0;
 			while(<PROBE>)
 				{
 				$_=~s/\s*$//;
@@ -591,7 +591,6 @@ foreach$probe(@input)
 					{
 					# check for seed match in sense orientation
 					my $seed = substr($stretch,$clip,$perfect_5p-$clip);
-					#warn($seed);
 					if($probes{$seed})
 						{
 						foreach$i(0..scalar(@{$probes{$seed}})-1)
@@ -614,7 +613,7 @@ foreach$probe(@input)
 								$m=substr($p3,$pos,1);
 								if($g ne $m)
 									{
-									if(($g == "G" and $m == "U") or ($g == "U" and $m == "G"))
+									if(($g eq "C" and $m eq "U") or ($g eq "A" and $m eq "G"))
 										{
 										$count_internal_mm += $GUpenalty;
 										}
@@ -650,7 +649,7 @@ foreach$probe(@input)
 											{
 												$l = substr($mapped_seq,$pos,1); $p = substr($locus_seq,$pos,1);
 												if($l eq $p) { $m .= "|" }
-												elsif(($l eq "G" && $p eq "U") || ($l eq "U" && $p eq "G")) { $m .= ":" }
+												elsif(($l eq "G" && $p eq "A") || ($l eq "U" && $p eq "C")) { $m .= ":" }
 												else { $m .= " " }
 											}
 											$output_line .= "${locus_seq}\n${m}\n${mapped_seq}\n";
@@ -703,22 +702,27 @@ foreach$probe(@input)
 										$count_clip_mm++;
 										}
 									}
+                $compares = "";
 								foreach$pos(0..((length$p3)-$untemplate_3p)-1)
 									{
 									$g=substr($lagging_stretch,-1-$pos,1);
 									$m=substr($p3,-1-$pos,1);
+                  $compares .= " $g,$m";
 									if($g ne $m) 
 										{
-										if(($g == "G" and $m == "U") or ($g == "U" and $m == "G")) 
+										if(($g eq "G" && $m eq "U") || ($g eq "U" && $m eq "G")) 
 											{
 											$count_internal_mm += $GUpenalty;
+                      $compares .= "GU";
 											}
 										else 
 											{
 											$count_internal_mm++;
+                      $compares .= "m";
 											}
 										last if($count_internal_mm>$max_internal_mm);
 										}
+                    else { $compares .= "M" }
 									}
 								if($count_internal_mm<=$max_internal_mm)
 									{
@@ -746,6 +750,10 @@ foreach$probe(@input)
 									next if($outside==1);
 									$hit_mm=$count_internal_mm+$count_untemplate_3p+$count_clip_mm+$probes_rc_distance{$seed}->[$i];
 									
+                  $reverse_mapped_seq = reverse$mapped_seq;
+                  $mapped_seed = reverse(substr($reverse_mapped_seq,0,length$seed));
+                  $mapped_p3 = reverse(substr($reverse_mapped_seq,length$seed));
+
 									$mapped_seq_rc=$mapped_seq;
 									$mapped_seq=~tr/AUGC/UACG/;
 									$mapped_seq_c=$mapped_seq;
@@ -826,7 +834,7 @@ foreach$probe(@input)
 					{
 					$processed_bp+=length$next_line;
 					$stretch.=uc$next_line;
-          $stretch=~tr/atgcuT/AUGCUU/;
+					$stretch=~tr/atgcuT/AUGCUU/;
 					$concatenate_index=1;
 					}
 				}
