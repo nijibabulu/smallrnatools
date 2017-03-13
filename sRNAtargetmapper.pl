@@ -613,7 +613,7 @@ foreach$probe(@input)
 								$m=substr($p3,$pos,1);
 								if($g ne $m)
 									{
-									if(($g eq "C" and $m eq "U") or ($g eq "A" and $m eq "G"))
+									if(($g eq "C" && $m eq "U") || ($g eq "A" && $m eq "G"))
 										{
 										$count_internal_mm += $GUpenalty;
 										}
@@ -710,7 +710,7 @@ foreach$probe(@input)
                   $compares .= " $g,$m";
 									if($g ne $m) 
 										{
-										if(($g eq "G" && $m eq "U") || ($g eq "U" && $m eq "G")) 
+										if(($g eq "G" && $m eq "A") || ($g eq "U" && $m eq "C")) 
 											{
 											$count_internal_mm += $GUpenalty;
                       $compares .= "GU";
